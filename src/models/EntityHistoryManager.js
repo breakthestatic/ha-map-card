@@ -6,6 +6,7 @@ import HaDateRangeService from '../services/HaDateRangeService';
 import HaLinkedEntityService from '../services/HaLinkedEntityService';
 import Entity from './Entity';
 import Logger from '../util/Logger';
+import debounce from '../util/debounce';
 import TimelineEntry from './TimelineEntry';
 
 export default class EntityHistoryManager {
@@ -31,6 +32,7 @@ export default class EntityHistoryManager {
     this.historyService = historyService;
     this.dateRangeManager = dateRangeManager;
     this.linkedEntityService = linkedEntityService;
+    this.debouncedUpdate = debounce(this.update.bind(this), 100);
   }
 
   get hasHistory() {
@@ -122,6 +124,7 @@ export default class EntityHistoryManager {
       this.history.react(entry);
     }
     this.entity.react(entry);
+    this.debouncedUpdate();
   }
 
   
