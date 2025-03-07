@@ -5,6 +5,7 @@ import Logger from "../util/Logger.js"
 import EntityConfig from "../configs/EntityConfig.js";
 import EntityHistoryManager from "./EntityHistoryManager.js";
 import TimelineEntry from "./TimelineEntry.js";
+import debounce from "../util/debounce.js";
 
 export default class Entity {
   /** @type {EntityConfig} */
@@ -66,6 +67,7 @@ export default class Entity {
     }
     this.circle = new Circle(this.config.circleConfig, this);
     this.historyManager = new EntityHistoryManager(this, historyService, dateRangeManager, linkedEntityService);
+    this.debouncedUpdate = debounce(this.update.bind(this), 100);
   }
 
   get id() {
@@ -146,7 +148,8 @@ export default class Entity {
     if (entry.entityId == this.id) {
       this.currentTimelineEntry = entry;
     }
-    this._currentLatLng = new LatLng(entry.latitude, entry.longitude);    
+    this._currentLatLng = new LatLng(entry.latitude, entry.longitude);
+    this.debouncedUpdate()
   }
 
   get friendlyName() {
