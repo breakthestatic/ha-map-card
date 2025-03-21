@@ -45,7 +45,7 @@ export default class EntitiesRenderService {
     this.entities = this.entityConfigs.map((configEntity) => {
       // Attempt to setup entity. Skip on fail, so one bad entity does not affect others.
       try {
-        const entity = new Entity(configEntity, this.hass, this.map, this.historyService, this.dateRangeManager, this.linkedEntityService, this.isDarkMode);
+        const entity = new Entity(configEntity, this.hass, this.map, this.historyService, this.dateRangeManager, this.linkedEntityService, this.isDarkMod, this.updateInitialView.bind(this));
         entity.setup();
         return entity; 
       } catch (e){

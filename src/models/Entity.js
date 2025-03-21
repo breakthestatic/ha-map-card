@@ -56,18 +56,19 @@ export default class Entity {
    */
   _currentLatLng;  
 
-  constructor(config, hass, map, historyService, dateRangeManager, linkedEntityService, darkMode) {
+  constructor(config, hass, map, historyService, dateRangeManager, linkedEntityService, darkMode, onUpdate) {
     this.config = config;
     this.hass = hass;
     this.map = map;
     this.darkMode = darkMode;
+    this.onUpdate = onUpdate
 
     if(this.display == "state") {
       this._currentTitle = this.title;
     }
     this.circle = new Circle(this.config.circleConfig, this);
     this.historyManager = new EntityHistoryManager(this, historyService, dateRangeManager, linkedEntityService);
-    this.debouncedUpdate = debounce(this.update.bind(this), 100);
+    this.debouncedUpdate = debounce(this.update.bind(this), 200);
   }
 
   get id() {
@@ -196,6 +197,7 @@ export default class Entity {
     this.marker.setLatLng(this.latLng);
     this.historyManager.update();
     this.circle.update();
+    this.onUpdate()
   }
 
   /**
