@@ -81,8 +81,12 @@ export default class EntitiesRenderService {
     // If not, get bounds of all markers rendered
     const bounds = (new LatLngBounds(points)).pad(0.1);
     if(this.focusFollowConfig.isContains) {
-      if(this.map.getBounds().contains(bounds)) {
-        return;
+      try {
+        if(this.map.getBounds().contains(bounds)) {
+          return;
+        }
+      } catch (e) {
+        Logger.debug("[EntitiesRenderService.updateInitialView]: Map not initialized yet, skipping bounds check", e);
       }
     }
     this.map.fitBounds(bounds);
