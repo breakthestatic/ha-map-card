@@ -1,4 +1,4 @@
-import {Map, LayerGroup, LatLngBounds} from "leaflet";
+import {Map, LatLngBounds} from "leaflet";
 import EntityConfig from "../../configs/EntityConfig";
 import Entity from "../../models/Entity";
 import Logger from "../../util/Logger";
@@ -70,7 +70,11 @@ export default class EntitiesRenderService {
     if(this.focusFollowConfig.isNone) {
       return;
     }
-    const points = this.entities.filter(e => e.config.focusOnFit).map((e) => e.latLng);
+    const points = this.entities
+      .filter(e => e.config.focusOnFit)
+      .map((e) => e.latLng)
+      .filter(ll => ll && ll.lat !== 0 && ll.lng !== 0);
+    
     if(points.length === 0) {
       return;
     }
@@ -86,7 +90,11 @@ export default class EntitiesRenderService {
   }
 
   setInitialView() {
-    const points = this.entities.filter(e => e.config.focusOnFit).map((e) => e.latLng);
+    const points = this.entities
+      .filter(e => e.config.focusOnFit)
+      .map((e) => e.latLng)
+      .filter(ll => ll && ll.lat !== 0 && ll.lng !== 0);
+    
     if(points.length === 0) {
       return;
     }

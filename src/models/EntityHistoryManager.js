@@ -25,6 +25,8 @@ export default class EntityHistoryManager {
   linkedEntityService;
   /** @type {EntityHistory} */
   history;
+  /** @type {number} */
+  updateTimeout;
 
   constructor(entity, historyService, dateRangeManager, linkedEntityService) {
     this.entity = entity;
@@ -51,6 +53,13 @@ export default class EntityHistoryManager {
   }
 
   setupListeners() {
+    const historyStart = this.entity.config.historyStart ?? new Date(Date.now() - 10 * 1000);
+    this.currentHistoryStart = historyStart;
+    this.currentHistoryEnd = this.entity.config.historyEnd;
+    
+    // Subscribe immediately before setting up listeners
+    this.subscribeHistory(historyStart, this.entity.config.historyEnd);
+
     if (this.entity.config.usingDateRangeManager) {
       Logger.debug(`[EntityHistoryManager] Using date range manager for ${this.entity.id}`);
       this.dateRangeManager.onDateRangeChange((range) => {
@@ -69,9 +78,6 @@ export default class EntityHistoryManager {
           this.refreshHistory();
         }
       );
-    } else {
-      Logger.debug(`[EntityHistoryManager] Using history start config for ${this.entity.id}`);
-      this.currentHistoryStart = this.entity.config.historyStart;
     }
 
     if (this.entity.config.historyEndEntity) {
@@ -84,14 +90,7 @@ export default class EntityHistoryManager {
           this.refreshHistory();
         }
       );
-    } else {
-      Logger.debug(`[EntityHistoryManager] Using history end config for ${this.entity.id}`);
-      this.currentHistoryEnd = this.entity.config.historyEnd;
     }
-
-    const historyStart = this.entity.config.historyStart ?? new Date(Date.now() - 10 * 1000);
-    this.subscribeHistory(historyStart, this.entity.config.historyEnd);    
-
   }
 
   setHistoryDates(start, end) {
@@ -120,6 +119,8 @@ export default class EntityHistoryManager {
 
     if(this.hasHistory) {
       this.history.react(entry);
+      if (this.updateTimeout) clearTimeout(this.updateTimeout);
+      this.updateTimeout = setTimeout(() => this.update(), 100);
     }
     this.entity.react(entry);
   }

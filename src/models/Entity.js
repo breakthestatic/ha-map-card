@@ -135,18 +135,30 @@ export default class Entity {
   }
 
   setup() {
-    this.marker = this.createMapMarker();
-    this.marker.addTo(this.map);
+    try {
+      const latLng = this.latLng;
+      if (!latLng) {
+        Logger.warn(`[Entity] Skipping marker creation for ${this.id} - invalid coordinates`);
+        return;
+      }
+      this.marker = this.createMapMarker();
+      this.marker.addTo(this.map);
+    } catch (e) {
+      Logger.warn(`[Entity] Skipping marker creation for ${this.id} - ${e.message}`);
+    }
     this.historyManager.setup();
     this.circle.setup();
   }
 
   /** @param {TimelineEntry} entry */  
-  react(entry) {    
+  react(entry) {
+    // Only react to entries for THIS entity
+    if (entry.originalEntityId !== this.id) return;
+
     if (entry.entityId == this.id) {
       this.currentTimelineEntry = entry;
     }
-    this._currentLatLng = new LatLng(entry.latitude, entry.longitude);    
+    this._currentLatLng = new LatLng(entry.latitude, entry.longitude);
   }
 
   get friendlyName() {
@@ -184,6 +196,8 @@ export default class Entity {
   }  
 
   async update() {
+    if (!this.marker) return;
+    
     if(this.display == "state" || this.display == "attribute") {
       if(this.title != this._currentTitle) {
         Logger.debug("[Entity] updating marker for " + this.id + " from " + this._currentTitle + " to " + this.title);
@@ -193,7 +207,10 @@ export default class Entity {
         this._currentTitle = this.title;
       }
     }
-    this.marker.setLatLng(this.latLng);
+    const latLng = this.latLng;
+    if (latLng) {
+      this.marker.setLatLng(latLng);
+    }
     this.historyManager.update();
     this.circle.update();
   }

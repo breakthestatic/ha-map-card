@@ -28,7 +28,10 @@ export default class InitialViewRenderService {
       this.map.setView(latLng, this.config.zoom);
       return;
     }
-    this.entitiesRenderService.setInitialView();
+    // Defer until map is properly sized
+    setTimeout(() => {
+      this.entitiesRenderService.setInitialView();
+    }, 100);
   }
 
   render() { }
