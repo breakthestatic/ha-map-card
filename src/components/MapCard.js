@@ -92,10 +92,11 @@ export default class MapCard extends LitElement {
 
   render() {
 
+    if (this.setupNeeded && this.shadowRoot?.querySelector('#map')) {
+      this.setup();
+    }
+
     if (this.map) {
-      if (this.setupNeeded) {
-        this.setup();
-      }
       this.pluginsRenderService.render();
       this.tileLayersService.render();
       this.entitiesRenderService.render();
