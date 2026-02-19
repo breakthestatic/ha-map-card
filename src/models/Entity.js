@@ -136,8 +136,7 @@ export default class Entity {
 
   setup() {
     try {
-      const latLng = this.latLng;
-      if (!latLng) {
+      if (!this.latLng) {
         Logger.warn(`[Entity] Skipping marker creation for ${this.id} - invalid coordinates`);
         return;
       }
@@ -207,9 +206,8 @@ export default class Entity {
         this._currentTitle = this.title;
       }
     }
-    const latLng = this.latLng;
-    if (latLng) {
-      this.marker.setLatLng(latLng);
+    if (this.latLng) {
+      this.marker.setLatLng(this.latLng);
     }
     this.historyManager.update();
     this.circle.update();
