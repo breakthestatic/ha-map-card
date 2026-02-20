@@ -87,12 +87,14 @@ export default class MapCard extends LitElement {
   }
 
   firstUpdated() {
-    this.setup();
+    if (this.hass) {
+      this.setup();
+    }
   };
 
   render() {
 
-    if (this.setupNeeded && this.shadowRoot?.querySelector('#map')) {
+    if (this.setupNeeded && !this.map && this.hass && this.shadowRoot?.querySelector('#map')) {
       this.setup();
     }
 
@@ -212,7 +214,7 @@ export default class MapCard extends LitElement {
   _isDarkMode() {
     return (
       this.themeMode === "dark" ||
-      (this.themeMode === "auto" && Boolean(this.hass.themes.darkMode))
+      (this.themeMode === "auto" && Boolean(this.hass?.themes?.darkMode))
     );
   }
 
