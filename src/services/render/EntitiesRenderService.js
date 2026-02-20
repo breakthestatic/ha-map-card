@@ -103,8 +103,12 @@ export default class EntitiesRenderService {
       return;
     }
     // If not, get bounds of all markers rendered
-    const bounds = (new LatLngBounds(points)).pad(0.1);    
-    this.map.fitBounds(bounds);
-    Logger.debug("[EntitiesRenderService.setInitialView]: Setting initial view to: " + points.join(","));
+    const bounds = (new LatLngBounds(points)).pad(0.1);
+    try {
+      this.map.fitBounds(bounds);
+      Logger.debug("[EntitiesRenderService.setInitialView]: Setting initial view to: " + points.join(","));
+    } catch (e) {
+      Logger.debug("[EntitiesRenderService.setInitialView]: Map not ready, skipping fitBounds", e);
+    }
   }
 }

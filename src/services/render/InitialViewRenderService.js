@@ -30,7 +30,13 @@ export default class InitialViewRenderService {
     }
     // Defer until map is properly sized
     setTimeout(() => {
-      this.entitiesRenderService.setInitialView();
+      try {
+        if (this.map?.getContainer().isConnected) {
+          this.entitiesRenderService.setInitialView();
+        }
+      } catch (e) {
+        Logger.debug("[InitialViewRenderService] Map no longer available, skipping initial view", e);
+      }
     }, 100);
   }
 

@@ -188,6 +188,9 @@ export default class MapCard extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     Logger.debug("[MapCard.connectedCallback] called");
+    if (this.setupNeeded) {
+      this.requestUpdate();
+    }
   }
 
   disconnectedCallback() {
