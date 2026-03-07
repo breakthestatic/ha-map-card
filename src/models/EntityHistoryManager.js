@@ -117,12 +117,12 @@ export default class EntityHistoryManager {
       return;
     }
 
+    this.entity.react(entry);
     if(this.hasHistory) {
       this.history.react(entry);
       if (this.updateTimeout) clearTimeout(this.updateTimeout);
       this.updateTimeout = setTimeout(() => this.update(), 100);
     }
-    this.entity.react(entry);
   }
 
   
@@ -130,6 +130,9 @@ export default class EntityHistoryManager {
   update() {
     if(!this.hasHistory) {
       return;
+    }
+    if (this.entity.latLng && this.entity.marker) {
+      this.entity.marker.setLatLng(this.entity.latLng);
     }
     this.history?.update().flat().forEach((marker) => {
       marker.addTo(this.historyLayerGroup);
