@@ -53,7 +53,38 @@ describe("EntitiesRenderService", () => {
       entitiesRenderService.entities = testDataToMarker(testData);
 
       entitiesRenderService.setInitialView();
-      expect(map.fitBounds).toBeCalledWith({"_northEast": {"lat": 2.2, "lng": 3.9000000000000004}, "_southWest": {"lat": 1, "lng": -5.7}});
+      expect(map.fitBounds).toBeCalledWith(
+        {"_northEast": {"lat": 2.2, "lng": 3.9000000000000004}, "_southWest": {"lat": 1, "lng": -5.7}},
+        { padding: [40, 40], maxZoom: 16 }
+      );
+    });
+
+    it("honours configured fit_zoom_max and fit_padding", () => {
+      const map = {
+        setView: jest.fn(),
+        fitBounds: jest.fn(),
+        once: jest.fn(),
+      };
+      const hass = {};
+      // Positional args mirror the constructor: map, hass, focusFollowConfig,
+      // entityConfigs, linkedEntityService, dateRangeManager, historyService,
+      // isDarkMode, clusterMarkers, fitOptions.
+      const entitiesRenderService = new EntitiesRenderService(
+        map, hass, {}, {}, {}, {}, {}, false, true,
+        { fitZoomMax: 12, fitPadding: 80 }
+      );
+
+      entitiesRenderService.entities = testDataToMarker([
+        [1.1, 2.1],
+        [2.1, 3.1],
+        [1.7, -4.9],
+      ]);
+
+      entitiesRenderService.setInitialView();
+      expect(map.fitBounds).toBeCalledWith(
+        expect.anything(),
+        { padding: [80, 80], maxZoom: 12 }
+      );
     });
   });
 

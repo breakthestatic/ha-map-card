@@ -31,6 +31,16 @@ export default class MapConfig {
   tileLayers;
   /** @type {TileLayerConfig} */
   tileLayer;
+  /** @type {number} max zoom for the entity auto-fit (fitBounds) */
+  fitZoomMax;
+  /** @type {number} screen-edge padding in px for the entity auto-fit */
+  fitPadding;
+  /** @type {boolean} */
+  vectorBaseLayer;
+  /** @type {string} */
+  vectorBaseLayerStyleLight;
+  /** @type {string} */
+  vectorBaseLayerStyleDark;
   /** @type {[PluginConfig]} */
   plugins;
    /** @type {Date|Entity} */
@@ -58,6 +68,12 @@ export default class MapConfig {
     this.x = inputConfig.x;
     this.y = inputConfig.y;
     this.zoom = this._setConfigWithDefault(inputConfig.zoom, 12);
+    // Auto-fit framing: when the view is derived from entity positions
+    // (fitBounds), fitZoomMax caps how far it zooms in on tight clusters and
+    // fitPadding adds screen-edge breathing room (pixels). Defaults keep a
+    // neighbourhood-level view with a comfortable margin.
+    this.fitZoomMax = this._setConfigWithDefault(inputConfig.fit_zoom_max, 16);
+    this.fitPadding = this._setConfigWithDefault(inputConfig.fit_padding, 40);
     this.cardSize = this._setConfigWithDefault(inputConfig.card_size, 5);
     this.mapOptions = this._normalizeMapOptions(this._setConfigWithDefault(inputConfig.map_options, {}));
 
@@ -122,6 +138,16 @@ export default class MapConfig {
       return new PluginConfig(plugin.hacs, plugin.url, plugin.name, plugin.options);
     });
 
+    // Opt-in MapLibre GL vector base layer.
+    // When enabled, the base map is drawn as vector tiles via MapLibre GL,
+    // using the style/glyphs/sprites Home Assistant self-hosts under
+    // /static/map/ (added in HA frontend PR #53816). Falls back to the raster
+    // tile layer below when WebGL2 is unavailable or MapLibre fails to load.
+    // The raster tile_layer_url still applies as the fallback base layer.
+    this.vectorBaseLayer = this._setConfigWithDefault(inputConfig.vector_base_layer, false) ? true : false;
+    this.vectorBaseLayerStyleLight = this._setConfigWithDefault(inputConfig.vector_base_layer_style_light, "/static/map/light.json");
+    this.vectorBaseLayerStyleDark = this._setConfigWithDefault(inputConfig.vector_base_layer_style_dark, "/static/map/dark.json");
+
     const tileLayerUrl = this._setConfigWithDefault(inputConfig.tile_layer_url, "https://tile.openstreetmap.org/{z}/{x}/{y}.png");
     this.tileLayer = tileLayerUrl
       ? new TileLayerConfig(
@@ -134,7 +160,7 @@ export default class MapConfig {
     if(!(Number.isFinite(this.x) && Number.isFinite(this.y)) && this.focusEntity == null && this.entities.length == 0) {
       throw new Error("We need a map latitude & longitude; set at least [x, y], a focus_entity or have at least 1 entities defined.");
     }
-    Logger.debug(`[MapConfig]: created with title: ${this.title}, focusEntity: ${this.focusEntity}, x: ${this.x}, y: ${this.y}, zoom: ${this.zoom}, cardSize: ${this.cardSize}, entities: ${this.entities.map(e => e.id)}, wms: ${this.wms.map(l => l.url)}, tileLayers: ${this.tileLayers.map(l => l.url)}, plugins: ${this.plugins.map(p => p.name)}, historyStart: ${this.historyStart}, historyEnd: ${this.historyEnd}, historyDateSelection: ${this.historyDateSelection}, themeMode: ${this.themeMode}, mapOptions: ${this.mapOptions}, focusFollow: ${this.focusFollow}`);
+    Logger.debug(`[MapConfig]: created with title: ${this.title}, focusEntity: ${this.focusEntity}, x: ${this.x}, y: ${this.y}, zoom: ${this.zoom}, cardSize: ${this.cardSize}, entities: ${this.entities.map(e => e.id)}, wms: ${this.wms.map(l => l.url)}, tileLayers: ${this.tileLayers.map(l => l.url)}, plugins: ${this.plugins.map(p => p.name)}, historyStart: ${this.historyStart}, historyEnd: ${this.historyEnd}, historyDateSelection: ${this.historyDateSelection}, themeMode: ${this.themeMode}, mapOptions: ${this.mapOptions}, focusFollow: ${this.focusFollow}, vectorBaseLayer: ${this.vectorBaseLayer}`);
   }
 
   _setConfigWithDefault(input, d = null) {

@@ -9,6 +9,9 @@ import HaLinkedEntityService from "../HaLinkedEntityService";
 import HaHistoryService from "../HaHistoryService";
 import FocusFollowConfig from "../../configs/FocusFollowConfig";
 
+// Defaults for the auto-fit fitBounds calls when the card config omits them.
+const DEFAULT_FIT_ZOOM_MAX = 16;
+const DEFAULT_FIT_PADDING = 40;
 
 export default class EntitiesRenderService {
 
@@ -40,8 +43,12 @@ export default class EntitiesRenderService {
   _followPauseTimer = null;
   /** @type {boolean} */
   _isAutoFitting = false;
+  /** @type {number} max zoom applied when auto-fitting to entity bounds */
+  fitZoomMax;
+  /** @type {number} screen-edge padding (px) applied when auto-fitting */
+  fitPadding;
 
-  constructor(map, hass, focusFollowConfig, entityConfigs, linkedEntityService, dateRangeManager, historyService, isDarkMode, clusterMarkers = true) {
+  constructor(map, hass, focusFollowConfig, entityConfigs, linkedEntityService, dateRangeManager, historyService, isDarkMode, clusterMarkers = true, fitOptions = {}) {
     this.map = map;
     this.hass = hass;
     this.focusFollowConfig = focusFollowConfig;
@@ -51,6 +58,13 @@ export default class EntitiesRenderService {
     this.historyService = historyService;
     this.isDarkMode = isDarkMode;
     this.clusterMarkers = clusterMarkers;
+    this.fitZoomMax = fitOptions.fitZoomMax ?? DEFAULT_FIT_ZOOM_MAX;
+    this.fitPadding = fitOptions.fitPadding ?? DEFAULT_FIT_PADDING;
+  }
+
+  /** @returns {object} Leaflet fitBounds options for the entity auto-fit */
+  get _fitBoundsOptions() {
+    return { padding: [this.fitPadding, this.fitPadding], maxZoom: this.fitZoomMax };
   }
 
   setup() {
@@ -209,7 +223,7 @@ export default class EntitiesRenderService {
     this.map.once('moveend', () => {
       this._isAutoFitting = false;
     });
-    this.map.fitBounds(bounds);
+    this.map.fitBounds(bounds, this._fitBoundsOptions);
     Logger.debug("[EntitiesRenderService.updateInitialView]: Updating bounds to: " + points.join(","));
   }
 
@@ -224,7 +238,7 @@ export default class EntitiesRenderService {
     this.map.once('moveend', () => {
       this._isAutoFitting = false;
     });
-    this.map.fitBounds(bounds);
+    this.map.fitBounds(bounds, this._fitBoundsOptions);
     Logger.debug("[EntitiesRenderService.setInitialView]: Setting initial view to: " + points.join(","));
   }
 }

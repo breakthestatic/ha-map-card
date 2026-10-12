@@ -12,6 +12,7 @@ import TileLayersService from '../services/render/TileLayersRenderService.js';
 import EntitiesRenderService from '../services/render/EntitiesRenderService.js';
 import InitialViewRenderService from '../services/render/InitialViewRenderService.js';
 import TileLayer from '../leaflet/TileLayer.js';
+import VectorBaseLayerService, { MAP_MIN_ZOOM, MAP_MAX_ZOOM } from '../services/render/VectorBaseLayerService.js';
 import PluginsRenderService from '../services/render/PluginsRenderService.js';
 import GeoJsonRenderService from '../services/render/GeoJsonRenderService.js';
 
@@ -42,6 +43,8 @@ export default class MapCard extends LitElement {
   _config;
   /** @type {TileLayersService} */
   tileLayersService;
+  /** @type {VectorBaseLayerService} */
+  vectorBaseLayerService;
   /** @type {EntitiesRenderService} */
   entitiesRenderService;
   /** @type {InitialViewRenderService} */
@@ -73,7 +76,7 @@ export default class MapCard extends LitElement {
       this.dateRangeManager = new HaDateRangeService(this.hass);
     }
     this.tileLayersService = new TileLayersService(this.map, this._config.tileLayers, this._config.wms, this.urlResolver, this.linkedEntityService, this.dateRangeManager);
-    this.entitiesRenderService = new EntitiesRenderService(this.map, this.hass, this._config.focusFollow, this._config.entities, this.linkedEntityService, this.dateRangeManager, this.historyService, this._isDarkMode(), this._config.clusterMarkers);
+    this.entitiesRenderService = new EntitiesRenderService(this.map, this.hass, this._config.focusFollow, this._config.entities, this.linkedEntityService, this.dateRangeManager, this.historyService, this._isDarkMode(), this._config.clusterMarkers, { fitZoomMax: this._config.fitZoomMax, fitPadding: this._config.fitPadding });
     this.initialViewRenderService = new InitialViewRenderService(this.map, this._config, this.hass, this.entitiesRenderService);
 
     this.pluginsRenderService = new PluginsRenderService(this.map, this._config.plugins);
@@ -110,6 +113,7 @@ export default class MapCard extends LitElement {
     }
 
     if (this.map) {
+      this._syncDarkMode();
       this.pluginsRenderService.render();
       this.tileLayersService.render();
       this.geoJsonRenderService.render(this.hass);
@@ -194,13 +198,64 @@ export default class MapCard extends LitElement {
     // Add dark class if darkmode
     this._isDarkMode() ? mapEl.classList.add('dark') : mapEl.classList.add('light');
 
+    // Base layer: opt-in MapLibre GL vector tiles (HA's self-hosted assets),
+    // otherwise the classic raster tile layer. The vector layer falls back to
+    // the raster layer when WebGL2 is unavailable or MapLibre fails to load.
+    if (this._config.vectorBaseLayer) {
+      mapEl.classList.add('vector-base');
+      // Constrain the map to the zoom range MapLibre's tiles support. This has
+      // to happen before the initial view is applied: with the raster base
+      // layer the tile layer supplied the map's maxZoom, but the vector layer
+      // is added asynchronously and never sets one, so without this fitBounds
+      // (the auto-fit used when no x/y or focus_entity is given) would zoom to
+      // an unbounded maxZoom instead of a sensible level.
+      map.setMinZoom(MAP_MIN_ZOOM);
+      map.setMaxZoom(MAP_MAX_ZOOM);
+      // Give the map a provisional view so its panes are positioned before the
+      // (async) MapLibre layer is added. The maplibre-gl-leaflet adapter reads
+      // pane positions in onAdd and throws (_leaflet_pos undefined) if the map
+      // has never had a view. InitialViewRenderService refines this once
+      // entity positions are known; here we just need the map to be "ready".
+      if (!map._loaded) {
+        const lat = Number.isFinite(this._config.x) ? this._config.x : 0;
+        const lng = Number.isFinite(this._config.y) ? this._config.y : 0;
+        map.setView([lat, lng], this._config.zoom ?? MAP_MIN_ZOOM);
+      }
+      this.vectorBaseLayerService = new VectorBaseLayerService(map, {
+        styleLightUrl: this._config.vectorBaseLayerStyleLight,
+        styleDarkUrl: this._config.vectorBaseLayerStyleDark,
+        connection: this.hass.connection,
+        rasterFallback: () => {
+          mapEl.classList.remove('vector-base');
+          this._addRasterBaseLayer(map);
+        },
+      });
+      // setup() is async (it fetches the style); fire-and-forget so map
+      // creation stays synchronous. It never throws - it falls back to raster.
+      // Re-sync dark mode once it resolves: setup() picks a style from the
+      // theme as it was when the card mounted, but hass.themes may not have
+      // settled yet (or may change during the async load), and _syncDarkMode
+      // only acts on a *change* - so reconcile against the current theme here.
+      this.vectorBaseLayerService.setup(this._isDarkMode()).then(() => {
+        this.vectorBaseLayerService?.setDarkMode(this._isDarkMode());
+      });
+    } else {
+      this._addRasterBaseLayer(map);
+    }
+    return map;
+  }
+
+  /**
+   * Adds the classic raster tile base layer (from tile_layer_url) to the map.
+   * @param {L.Map} map
+   */
+  _addRasterBaseLayer(map) {
     if (this._config.tileLayer) {
       let tileUrl = this.urlResolver.resolveUrl(this._config.tileLayer.url);
       let layer = new TileLayer(tileUrl, this._config.tileLayer.options);
       map.addLayer(layer);
       this.urlResolver.registerLayer(layer, this._config.tileLayer.url);
     }
-    return map;
   }
 
 
@@ -234,6 +289,8 @@ export default class MapCard extends LitElement {
     this.pluginsRenderService?.cleanup();
     this.geoJsonRenderService?.cleanup();
     this.entitiesRenderService?.cleanup();
+    this.vectorBaseLayerService?.cleanup();
+    this.vectorBaseLayerService = undefined;
     this.map.remove();
     this.map = undefined;
   }
@@ -252,6 +309,22 @@ export default class MapCard extends LitElement {
       this.themeMode === "dark" ||
       (this.themeMode === "auto" && Boolean(this.hass.themes.darkMode))
     );
+  }
+
+  /**
+   * Keeps the map's dark/light state in sync with the current theme. Updates
+   * the CSS class (used by the raster tile invert filter) and, when the vector
+   * base layer is active, swaps its style between light and dark cartography.
+   */
+  _syncDarkMode() {
+    const mapEl = this.shadowRoot?.querySelector('#map');
+    if (!mapEl) {
+      return;
+    }
+    const dark = this._isDarkMode();
+    mapEl.classList.toggle('dark', dark);
+    mapEl.classList.toggle('light', !dark);
+    this.vectorBaseLayerService?.setDarkMode(dark);
   }
 
   static getStubConfig(hass) {
@@ -350,6 +423,27 @@ export default class MapCard extends LitElement {
       }
       .leaflet-tile-pane {
         filter: var(--map-filter);
+      }
+      /* The vector base layer ships its own dark cartography and renders its
+         MapLibre canvas inside .leaflet-tile-pane. The dark-mode --map-filter
+         invert (meant for raster tiles) would otherwise invert that already-dark
+         canvas back to light. A filter on the pane cannot be undone by a child,
+         so drop it on the whole pane when the vector layer is active - there are
+         no raster base tiles to invert in that case (the raster fallback removes
+         the .vector-base class). */
+      #map.vector-base .leaflet-tile-pane {
+        filter: none;
+      }
+      /* Minimal rules the MapLibre canvas needs; it renders inside a Leaflet
+         pane rather than styling its own controls (we do not render those). */
+      .maplibregl-map {
+        position: relative;
+        overflow: hidden;
+      }
+      .maplibregl-canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
       }
     `;
   }

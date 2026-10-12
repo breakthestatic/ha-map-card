@@ -111,13 +111,74 @@ export default class Entity {
     return picture ? this.hass.hassUrl(picture) : null;
   }
 
+  /**
+   * The live position from hass.states: the entity's own lat/lng, or the first
+   * sub-tracker (device_trackers) that has one. Independent of history.
+   * @private
+   * @returns {LatLng|null}
+   */
+  _liveLatLng() {
+    const liveAttrs = this.hass.states[this.id]?.attributes ?? {};
+    if (liveAttrs.latitude && liveAttrs.longitude) {
+      return new LatLng(liveAttrs.latitude, liveAttrs.longitude);
+    }
+    const subTrackerIds = liveAttrs.device_trackers ?? [];
+    for (let t = 0; t < subTrackerIds.length; t++) {
+      const entity = this.hass.states[subTrackerIds[t]];
+      if (entity?.attributes?.latitude && entity.attributes.longitude) {
+        return new LatLng(entity.attributes.latitude, entity.attributes.longitude);
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Whether the live state is newer than the last history point currently
+   * pinning the marker. The newest device_tracker last_updated is compared
+   * against the history entry's timestamp, so a live move that happened after
+   * the last recorded history fix wins. Returns false when either timestamp is
+   * missing (keeps the existing history-first behaviour).
+   * @private
+   * @returns {boolean}
+   */
+  _liveStateIsNewer() {
+    const historyTs = this.currentTimelineEntry?.timestamp?.getTime?.();
+    if (!historyTs) {
+      return false;
+    }
+    const ids = [this.id, ...(this.hass.states[this.id]?.attributes?.device_trackers ?? [])];
+    let liveTs = 0;
+    for (const id of ids) {
+      const lu = this.hass.states[id]?.last_updated;
+      if (lu) {
+        const t = new Date(lu).getTime();
+        if (t > liveTs) {
+          liveTs = t;
+        }
+      }
+    }
+    return liveTs > historyTs;
+  }
+
   /** @returns {LatLng} */
   get latLng() {
     if (this.config.fixedX && this.config.fixedY) {
       return new LatLng(this.config.fixedX, this.config.fixedY);
     }
 
+    // When history has reported a position it normally drives the marker, but
+    // the live state can be newer than the last recorded history fix (common
+    // for `person` entities, especially with use_base_entity_only). In that
+    // case follow the live position like HA's native map card, so the marker
+    // does not stick at an old location. The history trail still renders
+    // separately from the full series.
     if (this._currentLatLng) {
+      if (this._liveStateIsNewer()) {
+        const live = this._liveLatLng();
+        if (live) {
+          return live;
+        }
+      }
       return this._currentLatLng;
     }
 

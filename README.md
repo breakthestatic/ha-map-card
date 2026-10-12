@@ -45,6 +45,8 @@ y: 3.652
 | `focus_entity`           |                                                                                                                              | Entity to focus on. Map will default to show all markers if this and X/Y are not set.        |
 | `title`                  |                                                                                                                              | If empty, don't show a title                 |
 | `zoom`                   | 12                                                                                                                           | The zoom level. Ignored unless focus_entity or X & Y coords are set.                               |
+| `fit_zoom_max`           | 16                                                                                                                           | Max zoom used when the view is auto-fitted to entity positions (no `focus_entity`/X&Y). Caps how far it zooms in on tightly-clustered entities. |
+| `fit_padding`            | 40                                                                                                                           | Screen-edge padding (in pixels) added when auto-fitting to entity positions, to keep markers off the card edges. |
 | `card_size`              | 5                                                                                                                            | The Home Assistant card size                 |
 | `entities`               | []                                                                                                                           | Array of entities, will be listed as markers |
 | `wms`                    | []                                                                                                                           | WMS Layers, an array of `WMS` see below      |
@@ -52,6 +54,9 @@ y: 3.652
 | `tile_layer_url`         | https://tile.openstreetmap.org/{z}/{x}/{y}.png or `https://tile.example.com/{{states('sensor.test') }}/{z}/{x}/{y}.png`      | Override the default map source, the url supports entity lookups. See [URL Entity lookup](#url-entity-lookup).            |
 | `tile_layer_attribution` | &amp;copy; &lt;a href&#x3D;&quot;http:&#x2F;&#x2F;www.openstreetmap.org&#x2F;copyright&quot;&gt;OpenStreetMap&lt;&#x2F;a&gt; | Set the correct map attribution              |
 | `tile_layer_options` | {}                                                                                                                               | The `options` for the default [TileLayer](https://leafletjs.com/reference.html#tilelayer) |
+| `vector_base_layer`      | false                                                                                                                        | Draw the base map as vector tiles via MapLibre GL, using the map assets Home Assistant self-hosts. See [Vector base layer](#vector-base-layer). |
+| `vector_base_layer_style_light` | /static/map/light.json                                                                                                | Light MapLibre style document used when `vector_base_layer` is enabled. |
+| `vector_base_layer_style_dark`  | /static/map/dark.json                                                                                                 | Dark MapLibre style document used when `vector_base_layer` is enabled. |
 | `history_date_selection` | false                                                                                                                        | Will link with a `energy-date-selection` on the page to provide an interactive  date range picker. |
 | `theme_mode`          | auto                                  | `auto`, `light` or`dark`                                                                      |
 | `focus_follow`        | none                                  | `none`, `refocus`, `contains`, reset the map focused entity's, on each update. Some people call this the `Autofit` feature.                                                              |
@@ -346,6 +351,51 @@ OpenStreetMap tile servers may block tile requests that lack a valid `Referer` h
 type: custom:map-card
 tile_layer_options:
   referrerPolicy: "no-referrer"
+```
+
+### Vector base layer
+
+By default the base map is drawn from raster tiles (`tile_layer_url`). You can
+instead opt in to a vector base map rendered with [MapLibre GL](https://maplibre.org/),
+following the approach the Home Assistant frontend adopted in [PR #53816](https://github.com/home-assistant/frontend/pull/53816):
+
+```yaml
+type: custom:map-card
+vector_base_layer: true
+entities:
+  - entity: device_tracker.phone
+```
+
+When enabled, the base map is drawn as vector tiles while everything else
+(markers, history paths, WMS/tile layers, GeoJSON, plugins) stays on Leaflet.
+The style, glyphs and sprites are loaded from the map assets Home Assistant
+self-hosts under `/static/map/` on your own instance, so no third-party map
+service is contacted for the base layer and no extra assets are bundled into the
+card. Dark mode uses a real dark cartography rather than the CSS invert filter
+applied to raster tiles.
+
+A few things to know:
+
+* **Home Assistant version.** The `/static/map/` assets ship with the frontend
+  version that includes PR #53816. On older instances the style fetch fails and
+  the card automatically falls back to the raster base layer (`tile_layer_url`).
+* **WebGL2 required.** MapLibre needs WebGL2. Browsers without it (older mobile
+  devices, some blocklisted drivers) automatically fall back to the raster base
+  layer.
+* **Raster fallback.** `tile_layer_url`, `tile_layer_options` and
+  `tile_layer_attribution` still apply and are used whenever the vector layer
+  cannot be used, so keep them configured if you want a specific fallback source.
+* **These paths are not a documented, stable Home Assistant API.** If they move,
+  point `vector_base_layer_style_light` / `vector_base_layer_style_dark` at the
+  new location, or disable `vector_base_layer` to return to raster tiles.
+
+You can override the style documents, for example to self-host your own:
+
+```yaml
+type: custom:map-card
+vector_base_layer: true
+vector_base_layer_style_light: /local/my-maps/light.json
+vector_base_layer_style_dark: /local/my-maps/dark.json
 ```
 
 #### Advanced WMS/Tile layer options

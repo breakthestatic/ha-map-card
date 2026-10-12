@@ -276,6 +276,51 @@ describe('Entity class', () => {
     });
   });
 
+  describe('latLng history vs live reconciliation', () => {
+    it('keeps the history position when the live state is older', () => {
+      // Live state last updated an hour ago; history point is now.
+      hass.states['test-entity'] = {
+        last_updated: new Date(Date.now() - 3600_000).toISOString(),
+        attributes: { latitude: 10, longitude: 20 },
+      };
+      const entity = new Entity(entityConfig, hass, jest.fn(), jest.fn(), jest.fn(), jest.fn(), false);
+      entity.react(new TimelineEntry(new Date(), "test-entity", "test-entity", { a: { latitude: 50, longitude: 60 } }));
+
+      // History point (newer) wins.
+      expect(entity.latLng).toEqual({ lat: 50, lng: 60 });
+    });
+
+    it('follows the live state when it is newer than the last history point', () => {
+      // History point is an hour old; live state just updated.
+      hass.states['test-entity'] = {
+        last_updated: new Date().toISOString(),
+        attributes: { latitude: 10, longitude: 20 },
+      };
+      const entity = new Entity(entityConfig, hass, jest.fn(), jest.fn(), jest.fn(), jest.fn(), false);
+      entity.react(new TimelineEntry(new Date(Date.now() - 3600_000), "test-entity", "test-entity", { a: { latitude: 50, longitude: 60 } }));
+
+      // Live state (newer) wins, so the marker does not stick at the old fix.
+      expect(entity.latLng).toEqual({ lat: 10, lng: 20 });
+    });
+
+    it('follows a newer sub-tracker position when it is newer than history', () => {
+      // Person entity has no own coords; its device_tracker is the live source
+      // and was updated after the last history point.
+      hass.states['test-entity'] = {
+        last_updated: new Date(Date.now() - 3600_000).toISOString(),
+        attributes: { device_trackers: ['device_tracker.phone'] },
+      };
+      hass.states['device_tracker.phone'] = {
+        last_updated: new Date().toISOString(),
+        attributes: { latitude: 11, longitude: 22 },
+      };
+      const entity = new Entity(entityConfig, hass, jest.fn(), jest.fn(), jest.fn(), jest.fn(), false);
+      entity.react(new TimelineEntry(new Date(Date.now() - 3600_000), "test-entity", "test-entity", { a: { latitude: 50, longitude: 60 } }));
+
+      expect(entity.latLng).toEqual({ lat: 11, lng: 22 });
+    });
+  });
+
 });
 
 describe('Entity place pill (display: pill)', () => {
